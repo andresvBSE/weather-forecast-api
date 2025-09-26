@@ -1,0 +1,36 @@
+# cloudbuild.yaml
+steps:
+# 1. Build the Docker image
+- name: 'gcr.io/cloud-builders/docker'
+  id: Build
+  args:
+  - 'build'
+  - '-t'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/ml-models/predict-temp-api:$COMMIT_SHA'
+  - '.'
+
+# 2. Push the Docker image to Artifact Registry
+- name: 'gcr.io/cloud-builders/docker'
+  id: Push
+  args:
+  - 'push'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/ml-models/predict-temp-api:$COMMIT_SHA'
+
+# 3. Deploy the new image revision to Cloud Run
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: Deploy
+  args:
+  - 'run'
+  - 'deploy'
+  - 'predict-temp-api'
+  - '--image'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/ml-models/predict-temp-api:$COMMIT_SHA'
+  - '--region'
+  - 'us-central1'
+  - '--set-env-vars'
+  - 'GCS_BUCKET_NAME=gemini1-ml-api-models-bucket' # IMPORTANT: Use your actual bucket name!
+  - '--platform'
+  - 'managed'
+  - '--allow-unauthenticated'
+images:
+- 'us-central1-docker.pkg.dev/$PROJECT_ID/ml-models/predict-temp-api:$COMMIT_SHA'
