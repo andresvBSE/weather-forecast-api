@@ -34,3 +34,7 @@ steps:
   - '--allow-unauthenticated'
 images:
 - 'us-central1-docker.pkg.dev/$PROJECT_ID/ml-models/predict-temp-api:$COMMIT_SHA'
+options:
+  # This tells Cloud Build to send logs directly to Cloud Logging,
+  # satisfying the requirement without needing a custom logs bucket.
+  logging: CLOUD_LOGGING_ONLY
