@@ -45,7 +45,7 @@ class InputDays(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"Hello" : "This is my temperature app"} 
+    return {"Hello" : "This is my temperature app v1.1"} 
 
 
 @app.post("/next_days_temp")
