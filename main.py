@@ -49,13 +49,11 @@ def load_model_from_gcs():
         blob = bucket.blob(MODEL_FILE_NAME)
         blob.download_to_filename(LOCAL_MODEL_PATH)
         # Load the model from the local temporary file
-        global MODEL
         with open(LOCAL_MODEL_PATH, 'r', encoding='utf-8') as file:
             MODEL = model_from_json(file.read())
         print("Model loaded successfully from GCS")
     except Exception as e:
         print(f"Error loading model from GCS: {e}")
-        global MODEL
         MODEL = None
 
 class InputDays(BaseModel):
