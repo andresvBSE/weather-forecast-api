@@ -42,18 +42,34 @@ def setup_logging():
         prediction_logger.setLevel(logging.INFO)
         
 def load_model_from_gcs():
+    global MODEL
     try: 
         print(f"Loading model from GCS bucket: {BUCKET_NAME}")
         storage_client = storage.Client()
         bucket = storage_client.bucket(BUCKET_NAME)
         blob = bucket.blob(MODEL_FILE_NAME)
         blob.download_to_filename(LOCAL_MODEL_PATH)
+        print(f"Model file downloaded to: {LOCAL_MODEL_PATH}")
+        
         # Load the model from the local temporary file
         with open(LOCAL_MODEL_PATH, 'r', encoding='utf-8') as file:
             MODEL = model_from_json(file.read())
-        print("Model loaded successfully from GCS")
+        
+        # Validate model was loaded correctly
+        if MODEL is not None and hasattr(MODEL, 'predict'):
+            print("✅ Model loaded and validated successfully from GCS")
+        else:
+            print("❌ ERROR: Model loaded but validation failed")
+            MODEL = None
+            
+    except FileNotFoundError:
+        print(f"❌ ERROR: Model file not found at {LOCAL_MODEL_PATH}")
+        MODEL = None
+    except json.JSONDecodeError as e:
+        print(f"❌ ERROR: Invalid JSON in model file: {e}")
+        MODEL = None
     except Exception as e:
-        print(f"Error loading model from GCS: {e}")
+        print(f"❌ ERROR: Failed to load model from GCS: {e}")
         MODEL = None
 
 class InputDays(BaseModel):
@@ -63,6 +79,16 @@ class InputDays(BaseModel):
 @app.get("/")
 def read_root():
     return {"Hello" : "This is my temperature app v1.1"} 
+
+@app.get("/health")
+def health_check():
+    """Check if the API and model are ready"""
+    model_status = "loaded" if MODEL is not None else "not_loaded"
+    return {
+        "status": "healthy",
+        "model_status": model_status,
+        "model_ready": MODEL is not None
+    } 
 
 
 @app.post("/next_days_temp")
