@@ -5,6 +5,7 @@ from prophet.serialize import model_from_json
 import json
 import logging
 import time
+import sys
 
 # Load the model (from the local source)
 # with open('temp_forecaster.json', 'r') as fin:
@@ -27,7 +28,11 @@ app = FastAPI(
     description="Trained on temperature data for new dalily. Returns the temperature for the next n days according to the user request"
 )
 
-@app.on_event("startup") # running the code once at luch
+@app.on_event("startup") # running the code once at launch
+def startup_event():
+    setup_logging()
+    load_model_from_gcs()
+
 def setup_logging():
     # Only configure if no handler is present
     if not prediction_logger.handlers:
@@ -45,11 +50,12 @@ def load_model_from_gcs():
         blob.download_to_filename(LOCAL_MODEL_PATH)
         # Load the model from the local temporary file
         global MODEL
-        with open(LOCAL_MODEL_PATH, 'r') as file:
+        with open(LOCAL_MODEL_PATH, 'r', encoding='utf-8') as file:
             MODEL = model_from_json(file.read())
         print("Model loaded successfully from GCS")
     except Exception as e:
         print(f"Error loading model from GCS: {e}")
+        global MODEL
         MODEL = None
 
 class InputDays(BaseModel):
@@ -76,7 +82,7 @@ def get_predictions(item: InputDays):
         log_data = {
             "event_type": "prediction_request",
             "model_version": "v1.0",
-            "imput_features": item.n_days,
+            "input_features": item.n_days,
             "latency_ms": latency_ms,
             "prediction_datetime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "predictions": prediction
