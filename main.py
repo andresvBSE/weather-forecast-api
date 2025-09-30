@@ -3,7 +3,8 @@ from pydantic import BaseModel, Field
 from google.cloud import storage
 from prophet.serialize import model_from_json
 import json
-
+import logging
+import time
 
 # Load the model (from the local source)
 # with open('temp_forecaster.json', 'r') as fin:
@@ -16,6 +17,10 @@ MODEL_FILE_NAME = "temp_forecaster.json"
 LOCAL_MODEL_PATH = "/tmp/temp_forecaster.json" 
 MODEL = None
 
+# Get the logger instance
+prediction_logger = logging.getLogger('prediction_log')
+prediction_logger.setLevel(logging.INFO)
+
 app = FastAPI(
     title="Prophet Forecaster of Mean Temperature (Daily) New Delhi",
     version = "0.0.1",
@@ -23,6 +28,14 @@ app = FastAPI(
 )
 
 @app.on_event("startup") # running the code once at luch
+def setup_logging():
+    # Only configure if no handler is present
+    if not prediction_logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter('%(message)s'))
+        prediction_logger.addHandler(handler)
+        prediction_logger.setLevel(logging.INFO)
+        
 def load_model_from_gcs():
     try: 
         print(f"Loading model from GCS bucket: {BUCKET_NAME}")
@@ -51,9 +64,26 @@ def read_root():
 @app.post("/next_days_temp")
 def get_predictions(item: InputDays):
     if MODEL:
+        start_time = time.time()
         future_df = MODEL.make_future_dataframe(periods=item.n_days)
         forecast = MODEL.predict(future_df)
         forecast = forecast[["ds", "yhat"]] # to get the last n_days of predicts
-        return {"predictions" : forecast.iloc[-item.n_days:,].to_dict()}
+        prediction = forecast.iloc[-item.n_days:,].to_dict()
+        end_time = time.time()
+        latency_ms = round((end_time - start_time) * 1000, 2) # in milliseconds
+
+
+        log_data = {
+            "event_type": "prediction_request",
+            "model_version": "v1.0",
+            "imput_features": item.n_days,
+            "latency_ms": latency_ms,
+            "prediction_datetime": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "predictions": prediction
+        }
+        prediction_logger.info(json.dumps(log_data))
+
+        return {"predictions" : prediction}
     else:
         return {"error": "Model is not loaded"}
+
